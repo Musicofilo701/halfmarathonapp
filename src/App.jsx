@@ -12,7 +12,7 @@ import { getFirestore, doc, setDoc, collection, onSnapshot, addDoc, serverTimest
 // When deploying to your own laptop/phone, replace the `JSON.parse` line below with your actual config object from the Firebase Console.
 // Example: const firebaseConfig = { apiKey: "AIzaSy...", authDomain: "...", ... };
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: "marathon-app-a2001.firebaseapp.com",
   projectId: "marathon-app-a2001",
   storageBucket: "marathon-app-a2001.firebasestorage.app",

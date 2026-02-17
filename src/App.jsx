@@ -10,6 +10,7 @@ import { getFirestore, doc, setDoc, collection, onSnapshot, addDoc, serverTimest
 
 // 1. FIREBASE CONFIGURATION
 // When deploying to your own laptop/phone, replace the `JSON.parse` line below with your actual config object from the Firebase Console.
+console.log("CHIAVE VISTA DA REACT:", import.meta.env.VITE_FIREBASE_API_KEY);
 // Example: const firebaseConfig = { apiKey: "AIzaSy...", authDomain: "...", ... };
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,

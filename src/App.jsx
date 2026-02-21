@@ -4,7 +4,7 @@ import { Calendar, CheckCircle, Clock, Activity, TrendingUp, ChevronRight, Copy,
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, collection, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, collection, onSnapshot, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 // --- CONFIGURATION SECTION ---
 
@@ -32,7 +32,7 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'marathon-tracker-v1'
 
 // 3. GEMINI API KEY
 // When deploying locally, paste your key inside the quotes: const apiKey = "AIzaSy...";
-const apiKey = process.env.REACT_APP_GEMINI_KEY; 
+const apiKey = import.meta.env.VITE_GEMINI_KEY; 
 
 // --- END CONFIGURATION ---
 
@@ -77,7 +77,17 @@ async function getAICoachFeedback(runData) {
     return "Great effort! I couldn't generate a specific analysis right now, but miles in the bank are what count.";
   }
 }
-
+// Helper function to format dates for display
+const formatDateForDisplay = (dateStr) => {
+  if (!dateStr) return '';
+  // If it's already in ISO format (YYYY-MM-DD), format it nicely
+  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const date = new Date(dateStr + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  // Otherwise, return as-is (for backward compatibility)
+  return dateStr;
+};
 const App = () => {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -166,12 +176,23 @@ const App = () => {
 
     const logsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'runLogs');
     const unsubscribe = onSnapshot(logsRef, (snapshot) => {
-      const fetchedLogs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      const fetchedLogs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        // Convert Firestore Timestamp to number if needed
+        let timestamp = data.timestamp;
+        if (timestamp && typeof timestamp.toMillis === 'function') {
+          timestamp = timestamp.toMillis();
+        } else if (timestamp && timestamp.seconds) {
+          timestamp = timestamp.seconds * 1000;
+        }
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: timestamp
+        };
+      });
       // Sort in memory (newest first)
-      fetchedLogs.sort((a, b) => b.timestamp - a.timestamp);
+      fetchedLogs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
       setLogs(fetchedLogs);
     }, (error) => {
       console.error("Error fetching logs:", error);
@@ -254,7 +275,7 @@ const App = () => {
 
     // 2. Create Log Object
     const newLog = {
-      date: today.toLocaleDateString(),
+      date: today.toISOString().split('T')[0],
       timestamp: Date.now(),
       distance: formData.distance,
       time: formData.time,
@@ -514,7 +535,7 @@ const App = () => {
                 <div key={log.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative group animate-in fade-in slide-in-from-bottom-2">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <p className="text-xs font-bold text-slate-400 uppercase">{log.date}</p>
+                      <p className="text-xs font-bold text-slate-400 uppercase">{formatDateForDisplay(log.date)}</p>
                       <h3 className="text-lg font-bold text-slate-800">{log.distance} km <span className="text-sm font-normal text-slate-500">@ {log.pace}/km</span></h3>
                     </div>
                     <div className="flex gap-2">

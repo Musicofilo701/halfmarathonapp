@@ -52,7 +52,6 @@ async function getAICoachFeedback(runData) {
     - Distance: ${runData.distance}km
     - Time: ${runData.time}
     - Pace: ${runData.pace}/km
-    - Avg Heart Rate: ${runData.hr} bpm
     - RPE (Exertion 1-10): ${runData.rpe}
     - User Notes: "${runData.notes}"
     - Planned Distance: ${runData.plannedDistance}
@@ -146,8 +145,7 @@ const App = () => {
   // Form State
   const [formData, setFormData] = useState({
     distance: '',
-    time: '',
-    hr: '',
+    pace: ' ',
     rpe: 5,
     notes: ''
   });
@@ -174,7 +172,7 @@ const App = () => {
   useEffect(() => {
     if (!user) return;
 
-    const logsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'runLogs');
+    const logsRef = collection(db, 'artifacts', appId, 'users', 'my-personal-account', 'runLogs');
     const unsubscribe = onSnapshot(logsRef, (snapshot) => {
       const fetchedLogs = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -249,27 +247,32 @@ const App = () => {
     }));
   };
 
-  const calculatePace = () => {
-    if (!formData.distance || !formData.time) return '--:--';
-    const [min, sec] = formData.time.split(':').map(Number);
-    const totalMin = min + (sec || 0) / 60;
-    const paceDec = totalMin / parseFloat(formData.distance);
-    const paceMin = Math.floor(paceDec);
-    const paceSec = Math.round((paceDec - paceMin) * 60);
-    return `${paceMin}:${paceSec < 10 ? '0' : ''}${paceSec}`;
+const calculateTime = () => {
+    if (!formData.distance || !formData.pace) return '--:--';
+    const [min, sec] = formData.pace.split(':').map(Number);
+    const totalMinPerKm = min + (sec || 0) / 60;
+    const totalTimeInMin = totalMinPerKm * parseFloat(formData.distance);
+    const h = Math.floor(totalTimeInMin / 60);
+    const m = Math.floor(totalTimeInMin % 60);
+    const s = Math.round((totalTimeInMin % 1) * 60);
+    
+    if (h > 0) {
+      return `${h}:${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   const handleSave = async () => {
-    if (!user || !formData.distance || !formData.time) return;
+    if (!user || !formData.distance || !formData.pace) return;
     
     setIsSaving(true);
 
-    const calculatedPace = calculatePace();
+    const calculatedTime = calculateTime();
     
     // 1. Get AI Feedback first
     const aiFeedback = await getAICoachFeedback({
       ...formData,
-      pace: calculatedPace,
+      time: calculatedTime,
       plannedDistance: currentRun.distance
     });
 
@@ -278,22 +281,21 @@ const App = () => {
       date: today.toISOString().split('T')[0],
       timestamp: Date.now(),
       distance: formData.distance,
-      time: formData.time,
-      hr: formData.hr,
+      time: calculatedTime, 
+      pace: formData.pace, // Passo preso direttamente dall'input
       rpe: formData.rpe,
       notes: formData.notes,
-      pace: calculatedPace,
       plannedDistance: currentRun.distance,
-      planId: currentRun.id, // Storing Plan ID for better tracking
+      planId: currentRun.id,
       coachFeedback: aiFeedback
     };
 
     // 3. Save to Firestore
     try {
-      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'runLogs'), newLog);
+      // Ricordati di usare il percorso aggiornato per la history unificata
+      await addDoc(collection(db, 'artifacts', appId, 'users', 'my-personal-account', 'runLogs'), newLog);
       
-      // Reset & Redirect
-      setFormData({ distance: '', time: '', hr: '', rpe: 5, notes: '' });
+      setFormData({ distance: '', pace: '', rpe: 5, notes: '' });
       setActiveTab('history');
     } catch (err) {
       console.error("Error saving run:", err);
@@ -307,9 +309,7 @@ const App = () => {
 🏃‍♂️ **Run Report**
 📅 Date: ${log.date}
 📏 Distance: ${log.distance}km (Planned: ${log.plannedDistance})
-⏱️ Time: ${log.time}
 ⚡ Pace: ${log.pace}/km
-❤️ Avg HR: ${log.hr} bpm
 😰 RPE: ${log.rpe}/10
 🤖 Coach AI: ${log.coachFeedback}
 📝 Notes: ${log.notes}
@@ -433,21 +433,10 @@ const App = () => {
                   <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Time (mm:ss)</label>
                   <input 
                     type="text" 
-                    name="time"
-                    value={formData.time}
+                    name="pace"
+                    value={formData.pace}
                     onChange={handleInputChange}
-                    placeholder="45:00"
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Avg HR (bpm)</label>
-                  <input 
-                    type="number" 
-                    name="hr"
-                    value={formData.hr}
-                    onChange={handleInputChange}
-                    placeholder="145"
+                    placeholder="4:45"
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-bold"
                   />
                 </div>
@@ -537,11 +526,6 @@ const App = () => {
                     <div>
                       <p className="text-xs font-bold text-slate-400 uppercase">{formatDateForDisplay(log.date)}</p>
                       <h3 className="text-lg font-bold text-slate-800">{log.distance} km <span className="text-sm font-normal text-slate-500">@ {log.pace}/km</span></h3>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
-                        <Activity size={10} /> {log.hr}
-                      </span>
                     </div>
                   </div>
                   

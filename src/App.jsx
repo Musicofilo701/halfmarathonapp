@@ -44,7 +44,7 @@ async function getAICoachFeedback(runData) {
     return "Please add your Gemini API Key in the code to get AI coaching!";
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${finalApiKey}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${finalApiKey}`;
 
   const prompt = `
     Act as "Pace & Perseverance," an elite, encouraging but data-driven marathon coach.

@@ -101,12 +101,6 @@ const App = () => {
   // Training Plan Data (Complete 11-Week Sub-1:40 Plan)
   const trainingPlan = [
     // Phase 1: Base & Re-Introduction
-    { id: 1, date: '2026-02-11', type: 'Easy Base', distance: '8km', pace: '5:30-5:50', status: 'pending', notes: 'Rust Remover. Keep it strictly Zone 2.' },
-    { id: 2, date: '2026-02-13', type: 'Travel', distance: '0km', pace: '-', status: 'scheduled', notes: 'Long Weekend - Rest' },
-    { id: 3, date: '2026-02-15', type: 'Travel', distance: '0km', pace: '-', status: 'scheduled', notes: 'Long Weekend - Rest' },
-    { id: 4, date: '2026-02-18', type: 'Steady', distance: '8km', pace: '5:15-5:30', status: 'scheduled', notes: 'Returning from trip. Find rhythm.' },
-    { id: 5, date: '2026-02-20', type: 'Easy Short', distance: '6km', pace: '5:40-6:00', status: 'scheduled', notes: 'Shakeout run.' },
-    { id: 6, date: '2026-02-22', type: 'Long Run', distance: '14km', pace: '5:45-6:00', status: 'scheduled', notes: 'First double-digit run of the block.' },
     { id: 7, date: '2026-02-24', type: 'Goal Pace', distance: '8km', pace: '4:45', status: 'scheduled', notes: '2km wu + 4km @ 4:45/km + 2km cd' },
     { id: 8, date: '2026-02-27', type: 'Easy Short', distance: '7km', pace: '5:40-6:00', status: 'scheduled', notes: 'Easy recovery run.' },
     { id: 9, date: '2026-03-01', type: 'Long Run', distance: '16km', pace: '5:45-6:00', status: 'scheduled', notes: 'Building endurance.' },
@@ -145,7 +139,7 @@ const App = () => {
   // Form State
   const [formData, setFormData] = useState({
     distance: '',
-    pace: ' ',
+    pace: '',
     rpe: 5,
     notes: ''
   });
@@ -172,7 +166,7 @@ const App = () => {
   useEffect(() => {
     if (!user) return;
 
-    const logsRef = collection(db, 'artifacts', appId, 'users', 'my-personal-account', 'runLogs');
+    const logsRef = collection(db, 'artifacts', appId, 'sharedRunLogs');
     const unsubscribe = onSnapshot(logsRef, (snapshot) => {
       const fetchedLogs = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -200,42 +194,32 @@ const App = () => {
   }, [user]);
 
   // 3. (NEW) SMART UPDATE OF CURRENT RUN
-  // This effect runs whenever 'logs' changes. It calculates the next run dynamically.
+  // This effect runs whenever 'logs' changes. It calculates the next run dynamically based on sequence, NOT date.
   useEffect(() => {
-    // Basic initialization: find run based on today's date if no logs exist
-    const todayStr = today.toISOString().split('T')[0];
     
     if (logs.length === 0) {
-      // Logic: Find first run where date >= today
-      const upcoming = trainingPlan.find(run => run.date >= todayStr);
-      setCurrentRun(upcoming || trainingPlan[trainingPlan.length - 1]);
+      // Se non ci sono log, parti sempre dalla primissima corsa del piano
+      setCurrentRun(trainingPlan[0]);
       return;
     }
 
-    // Advanced Logic: If logs exist, find the first plan item AFTER the last logged run
-    // logs[0] is the most recent run because we sorted them in step 2.
-    const lastRunTimestamp = logs[0].timestamp;
-    const lastRunDate = new Date(lastRunTimestamp);
+    // Se ci sono log, ignora completamente le date.
+    // Trova qual è stata l'ultima corsa loggata in base all'ID del piano.
+    // (logs[0] è la corsa più recente perché li ordiniamo per data/timestamp)
+    const lastPlanId = logs[0].planId;
+    const lastIndex = trainingPlan.findIndex(run => run.id === lastPlanId);
     
-    // Normalize last run date to midnight to compare accurately with plan dates
-    lastRunDate.setHours(0,0,0,0);
-
-    // Find the next run in the plan that is strictly AFTER the last logged run date
-    const nextUp = trainingPlan.find(run => {
-      const planDate = new Date(run.date);
-      planDate.setHours(0,0,0,0);
-      return planDate > lastRunDate;
-    });
-
-    if (nextUp) {
-      setCurrentRun(nextUp);
+    // Proponi esattamente la corsa successiva a quella fatta nella lista dell'allenamento
+    const nextRun = trainingPlan[lastIndex + 1];
+    
+    if (nextRun) {
+      setCurrentRun(nextRun);
     } else {
-      // If no future runs found, stick to the last one (Race Day)
+      // Se non ci sono corse successive, mantieni l'ultima (il giorno della gara)
       setCurrentRun(trainingPlan[trainingPlan.length - 1]);
     }
 
   }, [logs]); // Depend on logs array
-
 
   // --- Handlers ---
 
@@ -293,7 +277,7 @@ const calculateTime = () => {
     // 3. Save to Firestore
     try {
       // Ricordati di usare il percorso aggiornato per la history unificata
-      await addDoc(collection(db, 'artifacts', appId, 'users', 'my-personal-account', 'runLogs'), newLog);
+      await addDoc(collection(db, 'artifacts', appId, 'sharedRunLogs'), newLog);
       
       setFormData({ distance: '', pace: '', rpe: 5, notes: '' });
       setActiveTab('history');
@@ -429,14 +413,14 @@ const calculateTime = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Time (mm:ss)</label>
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Pace (min/km)</label>
                   <input 
                     type="text" 
                     name="pace"
                     value={formData.pace}
                     onChange={handleInputChange}
-                    placeholder="4:45"
+                    placeholder="Es. 4:45"
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-bold"
                   />
                 </div>

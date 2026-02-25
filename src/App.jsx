@@ -246,44 +246,47 @@ const calculateTime = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const handleSave = async () => {
+const handleSave = async () => {
     if (!user || !formData.distance || !formData.pace) return;
     
     setIsSaving(true);
 
-    const calculatedTime = calculateTime();
-    
-    // 1. Get AI Feedback first
-    const aiFeedback = await getAICoachFeedback({
-      ...formData,
-      time: calculatedTime,
-      plannedDistance: currentRun.distance
-    });
-
-    // 2. Create Log Object
-    const newLog = {
-      date: today.toISOString().split('T')[0],
-      timestamp: Date.now(),
-      distance: formData.distance,
-      time: calculatedTime, 
-      pace: formData.pace, // Passo preso direttamente dall'input
-      rpe: formData.rpe,
-      notes: formData.notes,
-      plannedDistance: currentRun.distance,
-      planId: currentRun.id,
-      coachFeedback: aiFeedback
-    };
-
-    // 3. Save to Firestore
     try {
-      // Ricordati di usare il percorso aggiornato per la history unificata
+      const calculatedTime = calculateTime();
+      
+      // 1. Get AI Feedback first (Se l'errore è qui, ora lo intercettiamo!)
+      const aiFeedback = await getAICoachFeedback({
+        ...formData,
+        time: calculatedTime,
+        plannedDistance: currentRun.distance
+      });
+
+      // 2. Create Log Object
+      const newLog = {
+        date: today.toISOString().split('T')[0],
+        timestamp: Date.now(),
+        distance: formData.distance,
+        time: calculatedTime, 
+        pace: formData.pace,
+        rpe: formData.rpe,
+        notes: formData.notes,
+        plannedDistance: currentRun.distance,
+        planId: currentRun.id,
+        coachFeedback: aiFeedback
+      };
+
+      // 3. Save to Firestore
       await addDoc(collection(db, 'artifacts', appId, 'sharedRunLogs'), newLog);
       
       setFormData({ distance: '', pace: '', rpe: 5, notes: '' });
       setActiveTab('history');
+      
     } catch (err) {
-      console.error("Error saving run:", err);
+      // QUESTO È IL PUNTO CHIAVE: se fallisce, ci avvisa e si ferma elegantemente
+      console.error("ERRORE CRITICO DURANTE IL SALVATAGGIO:", err);
+      alert("Errore durante il salvataggio: " + err.message);
     } finally {
+      // Questo spegne la rotellina di caricamento in QUALSIASI caso
       setIsSaving(false);
     }
   };
